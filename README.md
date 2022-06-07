@@ -13,4 +13,4 @@
  `pip install -U ./asqlite`
 - Import the SQLWrap class.
 
-> **Note:** The main folder includes some examples about the usage of library.
+> **Note:** The **basic_read_and_write.py** file includes some examples about the usage of library.
