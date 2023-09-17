@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+import traceback
 import asqlite
 import typing as t
 
@@ -7,37 +8,37 @@ from . import query, constants
 from .datapath import get_datafile_path
 
 class Column:
-    def __init__(self, name: str, columnType: str, specialities: t.List[str]=None) -> None:
+    def __init__(self, name: str, column_type: str, specialities: t.List[str]=None) -> None:
         if (specialities == None):
             specialities = []
             
         self.name = name
-        self.type = columnType
+        self.type = column_type
         self.specialities = specialities
 
 class Table:
-    def __init__(self, tableName, primary_key_columns: t.Union[t.List, t.Any], *, columns: t.List[Column], database: str=None, auto_increment=False):
+    def __init__(self, table_name, primary_key_columns: t.Union[t.List, t.Any], *, columns: t.List[Column], database: str=None, auto_increment=False):
         """Unique key columns must be type of integer."""
-        self.table = tableName
+        self.table = table_name
 
         if not isinstance(primary_key_columns, list):
             primary_key_columns = [primary_key_columns]
         self.primary_keys = primary_key_columns
 
         if database:
-            if (constants.databaseName == None):
-                constants.databaseName = database
-            self.databasePath = get_datafile_path(database)
+            if (constants.database_name == None):
+                constants.database_name = database
+            self.database_path = get_datafile_path(database)
         else:
             if (constants.databaseName == None):
                 assert "Database name is not specified. Specify it with SQLWrap.databaseName or at constructor."
-            self.databasePath = get_datafile_path(constants.databaseName)
+            self.database_path = get_datafile_path(constants.databaseName)
 
         self._create_table(auto_increment=auto_increment, columns=columns)
         
     def _create_table(self, auto_increment=False, columns=[]):
         try:
-            conn = sqlite3.connect(self.databasePath, detect_types=constants.detect_types)
+            conn = sqlite3.connect(self.database_path, detect_types=constants.detect_types)
             cursor = conn.cursor()
             cursor.execute(f'''PRAGMA table_info("{self.table.strip("[]")}")''')
             result = cursor.fetchall()
@@ -66,14 +67,14 @@ class Table:
             logging.exception(er)
 
     async def _drop_table(self):
-        async with asqlite.connect(self.databasePath, detect_types=constants.detect_types) as conn:
+        async with asqlite.connect(self.database_path, detect_types=constants.detect_types) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(f'DROP TABLE {self.table}')
                 
             await conn.commit()
 
     async def _check_primary_key(self, primary_key):
-        """Checks if unique key is valid. And fixes it if needed."""
+        """Checks if primary key is valid. And fixes it if needed."""
         assert primary_key != None
         if not isinstance(primary_key, list):
             primary_key = [primary_key]
@@ -83,16 +84,16 @@ class Table:
         
 
     async def _get_columns(self):
-        async with asqlite.connect(self.databasePath, detect_types=constants.detect_types) as conn:
+        async with asqlite.connect(self.database_path, detect_types=constants.detect_types) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(f'SELECT name FROM pragma_table_info("{self.table}")')
                 columns = await cursor.fetchall()
                 return [x[0] for x in columns]
 
-    def _add_column(self, columnName, dataType, specialities: t.Optional[list]):
-        conn = sqlite3.connect(self.databasePath, detect_types=constants.detect_types)
+    def _add_column(self, column_name, data_type, specialities: t.Optional[list]):
+        conn = sqlite3.connect(self.database_path, detect_types=constants.detect_types)
         cursor = conn.cursor()
-        command = f'ALTER TABLE {self.table} ADD {columnName} {dataType}'
+        command = f'ALTER TABLE {self.table} ADD {column_name} {data_type}'
         if (specialities and len(specialities) > 0):
             command += " "
             command += " ".join(specialities)
@@ -103,33 +104,33 @@ class Table:
 
 
 
-    async def _get(self, selectQuery: query.SelectQuery):
-        async with asqlite.connect(self.databasePath, detect_types=constants.detect_types) as conn:
+    async def _get(self, select_query: query.SelectQuery):
+        async with asqlite.connect(self.database_path, detect_types=constants.detect_types) as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute(*selectQuery.get_query())
+                await cursor.execute(*select_query.get_query())
                 return await cursor.fetchall()
 
-    async def _update(self, updateQuery: query.UpdateQuery):
-        if updateQuery.length() == 0:
+    async def _update(self, update_query: query.UpdateQuery):
+        if update_query.length() == 0:
             return
 
-        async with asqlite.connect(self.databasePath, detect_types=constants.detect_types) as conn:
+        async with asqlite.connect(self.database_path, detect_types=constants.detect_types) as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute(*updateQuery.get_query())
+                await cursor.execute(*update_query.get_query())
 
             await conn.commit()
 
-    async def _insert(self, insertQuery: query.InsertQuery):
-        async with asqlite.connect(self.databasePath, detect_types=constants.detect_types) as conn:
+    async def _insert(self, insert_query: query.InsertQuery):
+        async with asqlite.connect(self.database_path, detect_types=constants.detect_types) as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute(*insertQuery.get_query())
+                await cursor.execute(*insert_query.get_query())
                 
             await conn.commit()
 
-    async def _delete(self, deleteQuery: query.DeleteQuery):
-        async with asqlite.connect(self.databasePath, detect_types=constants.detect_types) as conn:
+    async def _delete(self, delete_query: query.DeleteQuery):
+        async with asqlite.connect(self.database_path, detect_types=constants.detect_types) as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute(*deleteQuery.get_query())
+                await cursor.execute(*delete_query.get_query())
 
             await conn.commit()
     
@@ -143,120 +144,121 @@ class Table:
         if (not column.name in await self.get_column_list()):
             return self._add_column(column.name, column.type, column.specialities)
 
-    async def get_or_create(self, primaryKey):
-        primaryKey = await self._check_primary_key(primaryKey)
+    async def get_or_create(self, primary_key):
+        primary_key = await self._check_primary_key(primary_key)
 
-        data = await self.get_with(primaryKey)
+        data = await self.get_with(primary_key)
         if not data:
-            await self.set(primaryKey)
-            data = await self.get_with(primaryKey)
+            await self.set(primary_key)
+            data = await self.get_with(primary_key)
         return data
 
-    async def get_with(self, primaryKey, selectQuery: query.SelectQuery=None) -> t.Optional[sqlite3.Row]:
-        primaryKey = await self._check_primary_key(primaryKey)
+    async def get_with(self, primary_key, select_query: query.SelectQuery=None) -> t.Optional[sqlite3.Row]:
+        primary_key = await self._check_primary_key(primary_key)
 
-        if not selectQuery:
-            selectQuery = query.SelectQuery()
+        if not select_query:
+            select_query = query.SelectQuery()
 
-        for k, v in zip(self.primary_keys, primaryKey):
-            if not selectQuery.check_where(k,v):
-                selectQuery.add_where(equals={k:v})
+        for k, v in zip(self.primary_keys, primary_key):
+            if not select_query.check_where(k,v):
+                select_query.add_where(equals={k:v})
 
-        if not selectQuery.table:
-            selectQuery.table = self.table
+        if not select_query.table:
+            select_query.table = self.table
                 
-        selectQuery.set_limit(1)
+        select_query.set_limit(1)
 
-        result_row = await self._get(selectQuery)
+        result_row = await self._get(select_query)
         return result_row[0] if len(result_row) != 0 else None
 
-    async def get_one(self, selectQuery: query.SelectQuery) -> sqlite3.Row:
-        result = self.get(selectQuery)
+    async def get_one(self, select_query: query.SelectQuery) -> sqlite3.Row:
+        select_query.set_limit(1)
+        result = await self.get(select_query)
         return result[0] if result else None
         
-    async def get(self, selectQuery: query.SelectQuery) -> t.List[sqlite3.Row]:
-        if not selectQuery.table:
-            selectQuery.table = self.table
+    async def get(self, select_query: query.SelectQuery) -> t.List[sqlite3.Row]:
+        if not select_query.table:
+            select_query.table = self.table
 
-        return await self._get(selectQuery)
+        return await self._get(select_query)
 
-    async def get_column(self, columnName) -> t.List[t.Any]:
-        column_rows = await self._get(query.SelectQuery(table=self.table, columns=[columnName]))
+    async def get_column(self, column_name) -> t.List[t.Any]:
+        column_rows = await self._get(query.SelectQuery(table=self.table, columns=[column_name]))
         return [x[0] for x in column_rows]
 
     async def get_all(self) -> t.List[sqlite3.Row]:
         return await self._get(query.SelectQuery(table=self.table))
 
-    async def set(self, *, primaryKey=None, setQuery: query.SetQuery=None):
-        if not setQuery:
-            setQuery = query.SetQuery()
+    async def set(self, primary_key=None, set_query: query.SetQuery=None):
+        if not set_query:
+            set_query = query.SetQuery()
 
-        if not setQuery.table:
-            setQuery.table = self.table
+        if not set_query.table:
+            set_query.table = self.table
 
-        if not primaryKey:
-            assert setQuery.length() != 0
-            if isinstance(setQuery, query.InsertQuery):
-                if isinstance(setQuery, query.SetQuery):
-                    setQuery = setQuery.get_insert_query()
-                await self._insert(setQuery)
+        if not primary_key:
+            assert set_query.length() != 0
+            if isinstance(set_query, query.InsertQuery):
+                if isinstance(set_query, query.SetQuery):
+                    set_query = set_query.get_insert_query()
+                await self._insert(set_query)
                 
-            elif isinstance(setQuery, query.UpdateQuery):
-                await self._update(setQuery)
+            elif isinstance(set_query, query.UpdateQuery):
+                await self._update(set_query)
             return
 
-        primaryKey = await self._check_primary_key(primaryKey)
+        primary_key = await self._check_primary_key(primary_key)
 
-        if (await self.get_with(primaryKey)):
-            for k, v in zip(self.primary_keys, primaryKey):
-                if not setQuery.check_where(k, v):
-                    setQuery.add_where(equals={k:v})
+        if (await self.get_with(primary_key)):
+            for k, v in zip(self.primary_keys, primary_key):
+                if not set_query.check_where(k, v):
+                    set_query.add_where(equals={k:v})
 
-            if isinstance(setQuery, query.SetQuery):
-                setQuery = setQuery.get_update_query()
-            return await self._update(setQuery)
+            if isinstance(set_query, query.SetQuery):
+                set_query = set_query.get_update_query()
+            return await self._update(set_query)
 
         else:
-            values = setQuery.get_values()
-            for k, v in zip(self.primary_keys, primaryKey):
+            values = set_query.get_values()
+            for k, v in zip(self.primary_keys, primary_key):
                 if k not in values:
-                    setQuery.set_values(**{k:v})
+                    set_query.set_values(**{k:v})
 
-            if isinstance(setQuery, query.SetQuery):
-                setQuery = setQuery.get_insert_query()
-            return await self._insert(setQuery)
+            if isinstance(set_query, query.SetQuery):
+                set_query = set_query.get_insert_query()
+            return await self._insert(set_query)
 
-    async def delete(self, deleteQuery: query.DeleteQuery):
+    async def delete(self, delete_query: query.DeleteQuery):
         """All entries according to information will be deleted."""
-        if not deleteQuery.table:
-            deleteQuery.table = self.table
+        if not delete_query.table:
+            delete_query.table = self.table
 
-        return await self._delete(deleteQuery)
+        return await self._delete(delete_query)
 
-    async def copy_to_table_on_another_db(self, dbName: str, target_table_name: str):
-        async with asqlite.connect(self.databasePath, detect_types=constants.detect_types) as conn:
+    async def copy_to_table_on_another_db(self, db_name: str, target_table_name: str):
+        async with asqlite.connect(self.database_path, detect_types=constants.detect_types) as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute(f'ATTACH DATABASE "{get_datafile_path(dbName)}" AS new_db')
+                await cursor.execute(f'ATTACH DATABASE "{get_datafile_path(db_name)}" AS new_db')
                 await cursor.execute(f'INSERT INTO new_db.{target_table_name} SELECT * FROM {self.table};')
 
             await conn.commit()
 
     async def list_tables(self):
-        async with asqlite.connect(self.databasePath, detect_types=constants.detect_types) as conn:
+        async with asqlite.connect(self.database_path, detect_types=constants.detect_types) as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
                 tables_column = await cursor.fetchall()
                 return [x[0] for x in tables_column if not (x[0].startswith("sqlite_") or x[0].startswith("_"))]
 
-    async def write_to_file(self, fileName: str, selectQuery=None) -> str:
-        if not selectQuery:
-            selectQuery = query.SelectQuery()
+    async def write_to_file(self, file_name: str, select_query: query.SelectQuery=None) -> str:
+        if not select_query:
+            select_query = query.SelectQuery()
 
-        if (not fileName.endswith(".csv")):
-            fileName += ".csv"
+        if (not file_name.endswith(".csv")):
+            file_name += ".csv"
         
-        data = await self.get(selectQuery)
-        filePath = get_datafile_path(fileName)
+        data = await self.get(select_query)
+        filePath = get_datafile_path(file_name)
         with open(filePath, "w", encoding="utf-8") as file:
             if len(data) > 0:
                 file.write("; ".join(map(str, data[0].keys())) + "\n")

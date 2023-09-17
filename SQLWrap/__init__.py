@@ -1,3 +1,3 @@
-from .constants import databaseName, dataPath
+from .constants import data_path
 from .query import *
-from .database import Table, Column
+from .database import *

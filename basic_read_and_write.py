@@ -13,11 +13,11 @@ dataTable = Table(
 
 async def create_data():
     query = SetQuery({"id": 1, "name": "Safa", "surname": "Levent"})
-    await dataTable.set(setQuery=query)
+    await dataTable.set(set_query=query)
 
 async def update_data():
     query = SetQuery({"name": "Definitely Not", "surname": "Safa"})
-    await dataTable.set(primaryKey=1, setQuery=query)
+    await dataTable.set(primary_key=1, set_query=query)
 
 async def read_data():
     query = SelectQuery().add_where(equals={"surname": "Safa"})
